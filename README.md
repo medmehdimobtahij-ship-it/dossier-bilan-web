@@ -1,5 +1,7 @@
 # Dossier Bilan
 
+[![Tests](https://github.com/medmehdimobtahij-ship-it/dossier-bilan-web/actions/workflows/tests.yml/badge.svg)](https://github.com/medmehdimobtahij-ship-it/dossier-bilan-web/actions/workflows/tests.yml)
+
 Application web de **dossier de travail de clôture** pour un cabinet d'expertise comptable : de la balance importée jusqu'au mail de bilan envoyé au client, en passant par la révision par cycle, les SIG, l'affectation du résultat, le cadrage du CA et de la TVA, l'IS et l'aide à la liasse.
 
 ![Synthèse d'un dossier de démo](docs/capture-synthese.png)
