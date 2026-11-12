@@ -1,0 +1,10 @@
+# Données locales (dossiers, comptes, jetons, clé de session) : jamais dans le dépôt
+data/
+data-demo/
+connecteur/donnees/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/parite/rapport_parite.json
+*.xlsm
