@@ -2,127 +2,77 @@
 
 [![Tests](https://github.com/medmehdimobtahij-ship-it/dossier-bilan-web/actions/workflows/tests.yml/badge.svg)](https://github.com/medmehdimobtahij-ship-it/dossier-bilan-web/actions/workflows/tests.yml)
 
-Application web de **dossier de travail de clôture** pour un cabinet d'expertise comptable : de la balance importée jusqu'au mail de bilan envoyé au client, en passant par la révision par cycle, les SIG, l'affectation du résultat, le cadrage du CA et de la TVA, l'IS et l'aide à la liasse.
+At the firm, every year-end closing is prepared in the same Excel workbook: 42 sheets, about 20,000 formulas, copied from one client to the next.
 
-![Synthèse d'un dossier de démo](docs/capture-synthese.png)
+I didn't just move it to the web. I went through every formula the way I would review a client file, checked it against accounting and tax rules, and fixed what was wrong.
+The result is a web app that does the same work, with controls you can actually trust.
 
-## Le problème métier
+![Summary of a demo file](docs/capture-synthese.png)
 
-Dans beaucoup de cabinets, le dossier de clôture d'un client est un **gros classeur Excel à macros** copié d'un exercice à l'autre. Celui dont part ce projet comptait 42 feuilles et environ 20 000 formules. Il marchait, mais :
+## The accounting behind it
 
-- il fallait coller la balance à la main, et chaque copie du modèle embarquait des données d'anciens clients ;
-- plusieurs formules étaient fausses sans que rien ne le signale (déficit reportable perdu, quote-part comptée deux fois, contrôles toujours « ok ») ;
-- au-delà de certaines tailles (26 comptes de CA, 144 comptes par cycle…), il ignorait des lignes sans prévenir ;
-- un seul utilisateur à la fois, et aucune trace de qui avait modifié quoi.
+**Review by cycle.** Every account of the trial balance is assigned to a cycle (cash, receivables and payables, tax, payroll, fixed assets, equity, loans…) and gets a review status and a comment, carried over to the next year.
 
-**Dossier Bilan reprend ce classeur formule par formule** dans une application web : même logique métier, mais un calcul instantané, des contrôles fiables, plusieurs utilisateurs et un historique.
+**Controls that block the file**, shown on the summary page:
+- trial balance N and N-1 balanced to the cent
+- result from the SIG (French management balances) = accounting result
+- last year's profit allocation fully justified, account by account (1061, 1068, 110/119, dividends…)
+- revenue tied to VAT: from revenue per rate, through accruals, receivables and cash collected, to the taxable base actually declared on the CA3 returns
+- equity below half of the share capital flagged
 
-## Ce que fait l'application
+**Tax and legal**
+- taxable income with add-backs and deductions (non-deductible fines and gifts, parent-subsidiary regime with its 5% share of costs…)
+- tax losses carried forward, capped at €1M + 50% of the profit above (art. 209 I CGI)
+- corporate tax at 15% up to €42,500, then 25%
+- profit allocation at the AGM: legal reserve (5% of profit until it reaches 10% of capital), dividends per partner, social charges, 12.8% withholding, IFU boxes
+- for a majority manager (TNS): the part of dividends above 10% of capital, share premium and current account is subject to social contributions, year-end provision for contributions based on the PASS
 
-Un dossier par client et par exercice. Les cellules ambrées sont des saisies ; tout le reste est calculé, et le dossier entier est recalculé à chaque saisie (moins de 10 ms).
+Every rule is written out in plain words in [docs/REGLES.md](docs/REGLES.md) (in French).
 
-| Onglet | Contenu |
+## What I found in the original Excel
+
+Rebuilding it formula by formula meant I had to understand each one. Some were wrong, and a few of them in ways nobody would notice:
+
+- **Tax losses disappeared.** Past losses weren't capped at the profit. With €10,000 of profit and €50,000 of losses, the Excel used all €50,000, and €40,000 of carryforward vanished from the following years.
+- **A VAT control that could never fail.** For the 0%, intra-EU and export columns, the formula divided by the rate of the neighbouring column. The error turned into 0, so the line always said "ok", even with a real difference.
+- **Joint venture results counted twice** (655 / 755 shared the same heading), which broke the SIG = accounting result control.
+- **Grants (13) and regulated provisions (14) dropped out of equity** after the AGM.
+- **The revenue split for the tax return read only 13 of the 26 revenue accounts.**
+- **Former clients' data was still inside the template**, so every new file shipped with it.
+
+There are 9 corrections in total, each with the faulty cell, its effect and the fix, in [docs/ECARTS_EXCEL.md](docs/ECARTS_EXCEL.md).
+
+A few points aren't bugs but professional judgement (where do 79 "transferts de charges" go in the SIG? should the 10% dividend threshold use year N or N-1?). Those are left to the chartered accountant who signs, and the app behaves like the Excel until then.
+
+## How I know it's right
+
+I built a test bench that writes fictional client files into a copy of the original Excel, lets Excel recalculate, and compares every cell with my app to the cent.
+Last run: **35,526 cells on 13 files, no unexpected difference.** The only gaps are the corrections above.
+
+The original workbook belongs to the firm, so it isn't published. The bench is here to show the method.
+
+| SIG | Equity and allocation |
 |---|---|
-| **Synthèse** | Chiffres clés et contrôles bloquants : balances équilibrées, résultat du SIG = résultat comptable, affectation N-1 justifiée, TVA cadrée, avancement de la révision. |
-| **Balance** | Balance comparative N / N-1, variations, commentaires par compte. |
-| **Révision** | Révision par cycle (trésorerie, tiers, État, social, immobilisations, capitaux…) : statut et commentaire par compte, repris d'un exercice à l'autre. |
-| **SIG** | Soldes intermédiaires de gestion avec % du CA, N-1, variations et détail des comptes. |
-| **Capitaux et AG** | Capitaux propres, affectation du résultat N-1, AG à tenir : réserve légale, dividendes par associé (prélèvements sociaux, précompte, part soumise à cotisations des TNS). |
-| **CA et TVA** | Cadrage du chiffre d'affaires par taux, récapitulatif des déclarations CA3, cadrage de la TVA sur le solde et sur les flux. |
-| **Fiscal et liasse** | Résultat fiscal (réintégrations, déductions, déficit imputable plafonné), IS au taux réduit et normal, emprunts, aide à la liasse. |
-| **Gérant TNS** | Provision des cotisations, DRITI, PAMC, écritures de provision. |
-| **Déclaration IR** | Récapitulatif des cases de la 2042 et IFU par associé. |
-| **Social** | Rapprochement du journal de paie avec la comptabilité, par organisme. |
-| **Questionnaires** | Acceptation / maintien de la mission, révision, bouclage. |
-| **Mail bilan** | Chiffres clés, échéances (IS, TVA, flat tax) et projet de mail au client. |
+| ![SIG](docs/capture-sig.png) | ![Equity](docs/capture-capitaux.png) |
 
-Autres fonctions : import de la balance depuis **Pennylane** (API, lecture seule) ou depuis un fichier Excel / CSV / tableau collé ; import des déclarations de TVA déposées via un **connecteur de poste** qui lit les PDF ; reprise des statuts, associés et réglages de l'exercice précédent ; **export Excel** du dossier calculé ; impression de chaque onglet ; historique des modifications ; détection des modifications concurrentes (verrou optimiste : rien n'est écrasé sans le savoir).
+## Try it
 
-| SIG | Capitaux propres et affectation |
-|---|---|
-| ![SIG](docs/capture-sig.png) | ![Capitaux](docs/capture-capitaux.png) |
+You need Python 3.10+. No account, no internet.
 
-## Essayer en 30 secondes
+- Windows: double-click `demo.bat`
+- macOS / Linux: `sh demo.sh`
 
-Prérequis : Python 3.10 ou plus récent. Aucun compte externe, aucune connexion réseau.
+Then open http://localhost:8095 (login `demo` / `demo`). The demo has three fake companies: a consulting firm, a bakery and a loss-making digital studio.
 
-- **Windows** : double-cliquez sur `demo.bat`.
-- **macOS / Linux** : `sh demo.sh`.
+Tests: `python -m pytest tests`
 
-Puis ouvrez **http://localhost:8095**. La connexion est automatique (compte `demo`, mot de passe `demo`).
+Built with Python and Flask. The whole file is recalculated on every input in under 10 ms (the Excel took 2 to 5 seconds). The trial balance comes from Pennylane (read-only API) or from an Excel / CSV file.
 
-À la main :
+## What's not done yet
 
-```bash
-python -m venv .venv
-.venv/bin/pip install -r requirements.txt        # Windows : .venv\Scripts\pip ...
-BILAN_DEMO=1 .venv/bin/python serveur/lancer.py  # Windows : set BILAN_DEMO=1 puis .venv\Scripts\python serveur\lancer.py
-```
+- I followed Pennylane's public docs for the API but haven't tried it with a real token yet.
+- It's built for a small team, so there are no per-file permissions.
 
-Le mode démo crée **trois dossiers fictifs** (un cabinet de conseil, une boulangerie, un studio numérique en perte), avec des balances N et N-1 cohérentes, des associés, des déclarations de TVA, une paie et un gérant TNS. Tous les noms et montants sont inventés. Les données de la démo vivent dans `data-demo/` : supprimez ce dossier pour repartir de zéro. En démo, Pennylane et le connecteur sont désactivés côté serveur.
+The interface is in French, since it was made for a French firm.
 
-## Fiabilité : comment c'est prouvé
-
-| Vérification | Ce qu'elle prouve |
-|---|---|
-| **Banc de parité avec l'Excel d'origine** (`tests/parite/`) | Des dossiers fictifs complets (balance de 100 à 350 comptes et saisies dans toutes les feuilles) sont écrits dans une **copie** du classeur, recalculés par Excel (piloté par COM), relus et comparés au moteur au centime près. Dernière campagne : **35 526 cellules sur 13 dossiers, 0 écart imprévu**. Les seuls écarts sont les défauts de l'Excel corrigés, chacun identifié par le banc. |
-| **9 défauts de l'Excel détectés et corrigés** | Documentés un par un dans [docs/ECARTS_EXCEL.md](docs/ECARTS_EXCEL.md), avec la cellule fautive, l'effet et la correction. Exemple : l'imputation du déficit antérieur n'était pas plafonnée au bénéfice, ce qui faisait disparaître du déficit reportable (art. 209 I du CGI). |
-| **Tests automatiques** (`python -m pytest tests`) | Règles comptables, chaque correction de l'Excel, imports de fichiers, robustesse face aux saisies abîmées, invariants sur 30 dossiers aléatoires, connecteur de bout en bout, cohérence des dossiers de démo. |
-
-Le banc de parité se lance sur un poste Windows avec Excel :
-
-```bash
-pip install -r requirements-dev.txt
-python tests/parite/excel_parite.py "chemin/vers/le/classeur.xlsm" 1 2 3
-```
-
-**Le classeur Excel d'origine n'est pas publié** (document interne d'un cabinet) : le banc est fourni pour montrer la méthode, il ne peut pas être rejoué sans lui. Les tests `pytest`, eux, tournent partout.
-
-## Stack et architecture
-
-- **Python 3 / Flask** pour l'API JSON, **waitress** comme serveur, **SQLite** pour le stockage (versions et journal), **openpyxl** pour les imports et l'export Excel, **requests** pour Pennylane.
-- **JavaScript sans framework ni dépendance** pour l'interface (une page, routage par ancre), thème clair et sombre.
-- **PyMuPDF** côté connecteur pour lire les PDF de déclarations de TVA.
-
-Le point central : **le moteur de calcul est pur**. Il ne lit ni n'écrit aucun fichier et n'appelle aucun réseau : un dossier (infos, balance, saisies) entre, tous les résultats et contrôles sortent. Il est donc testable, comparable à l'Excel, et l'API se contente de le rappeler à chaque saisie.
-
-```
-serveur/
-  moteur/          calcul pur, un module par domaine
-    balance.py  sig.py  capitaux.py  ca_tva.py  fiscal.py  tns.py  ir.py  social.py  synthese.py  questionnaires.py
-    referentiel.py   tables reprises de l'Excel (rubriques du SIG, cycles, PASS, lignes de la CA3)
-    dossier.py       enchaîne les feuilles dans l'ordre de leurs dépendances et produit les contrôles
-  app.py           API Flask (sessions, en-têtes de sécurité, verrou optimiste)
-  stockage.py      SQLite : dossiers, versions, journal
-  pennylane.py     lecture des balances par l'API Pennylane (cabinet ou entreprise)
-  comptazap.py     réception des déclarations envoyées par le connecteur
-  import_fichier.py  export_excel.py  comptes.py  demo.py  lancer.py
-web/               index.html, app.js, styles.css, logo.svg
-connecteur/        programme du poste : lit les PDF de TVA, contrôle, envoie au site
-tests/             tests pytest et banc de parité (tests/parite/)
-docs/              REGLES.md (règles de calcul en clair), ECARTS_EXCEL.md (écarts avec l'Excel)
-```
-
-Documentation métier :
-- [docs/REGLES.md](docs/REGLES.md) : toutes les règles de calcul en clair, feuille par feuille ;
-- [docs/ECARTS_EXCEL.md](docs/ECARTS_EXCEL.md) : les 9 corrections, les limites de taille de l'Excel et 6 points de doctrine à faire valider par l'expert-comptable.
-
-## Intégrations (hors démo)
-
-- **Pennylane** : un jeton d'API (cabinet ou entreprise) se saisit dans Paramètres et reste sur le serveur ; l'application ne fait que lire. Les adresses appelées sont regroupées dans `CHEMINS` en tête de `serveur/pennylane.py`.
-- **Connecteur de poste** : un logiciel de bureau tiers télécharge les déclarations de TVA déposées sur impots.gouv. Le connecteur (`connecteur/`), installé sur ce poste, lit les PDF des CA3 / CA12, vérifie que le montant lu sur le PDF égale celui enregistré par le logiciel, puis envoie le détail des cases au site. Il s'identifie par un code de liaison dont seule l'empreinte est gardée.
-
-Configuration par variables d'environnement : `BILAN_PORT` (8095), `BILAN_HOTE`, `BILAN_DATA` (dossier des données), `BILAN_HTTPS=1` (cookies `Secure` derrière un proxy HTTPS), `BILAN_COMPTES` (« id:Nom,id2:Nom2 », comptes créés au premier lancement avec un mot de passe provisoire), `BILAN_SANS_MDP=1` (réseau local de confiance), `BILAN_DEMO=1`, `PENNYLANE_TOKEN`, `PENNYLANE_BASE`. Un `Dockerfile` est fourni.
-
-## Limites assumées
-
-- **Les adresses de l'API Pennylane n'ont pas encore été essayées avec un vrai jeton.** Elles suivent la documentation publique ; le bouton « Tester la connexion » affiche la réponse brute pour corriger `CHEMINS` au premier essai.
-- La balance Pennylane d'un exercice suppose que les à-nouveaux de l'exercice précédent sont passés.
-- L'API Pennylane ne donne pas le détail des déclarations de TVA : il vient du connecteur, ou d'un export Excel en secours.
-- Le banc de parité dépend du classeur d'origine, non publié, et d'Excel sous Windows.
-- Six points de doctrine restent à trancher par un expert-comptable (voir `docs/ECARTS_EXCEL.md`) ; en attendant, l'application fait comme l'Excel.
-- Outil interne conçu pour une petite équipe : pas de gestion fine des droits par dossier.
-
-## Auteur
-
-Mehdi Mobtahij. Licence MIT (voir [LICENSE](LICENSE)).
+MIT licence. Made by Mehdi Mobtahij.
