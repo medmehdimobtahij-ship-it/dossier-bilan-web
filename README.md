@@ -7,6 +7,8 @@ In a lot of small firms, that work lives in spreadsheets copied from one client 
 
 I built a web app for it: one file per client and per year, everything recalculated instantly, and controls that block the file when something doesn't add up.
 
+**What problem it solves:** year-end files prepared consistently, with automatic checks that catch errors before the file goes to the chartered accountant.
+
 ![Summary of a demo file](docs/capture-synthese.png)
 
 ## The accounting behind it
@@ -40,7 +42,15 @@ The calculation engine is covered by automated tests, written from the accountin
 - 30 randomly generated client files, checked against invariants that must always hold (balanced trial balance, SIG = accounting result, equity after the AGM…)
 - broken or messy imports (duplicate accounts, odd formats) handled without silently dropping lines
 
-## Try it
+## Tech stack
+
+- Python 3.10+ and Flask
+- HTML, CSS and JavaScript front end
+- pytest for the calculation engine
+- Pennylane API (read-only) or Excel / CSV import, Excel export
+- GitHub Actions for the tests
+
+## How to run
 
 You need Python 3.10+. No account, no internet.
 
@@ -51,7 +61,7 @@ Then open http://localhost:8095 (login `demo` / `demo`). The demo has three fake
 
 Tests: `python -m pytest tests`
 
-Built with Python and Flask. The whole file is recalculated on every input in under 10 ms. The trial balance comes from Pennylane (read-only API) or from an Excel / CSV file, and the whole file can be exported to Excel.
+The whole file is recalculated on every input in under 10 ms. The trial balance comes from Pennylane (read-only API) or from an Excel / CSV file, and the whole file can be exported to Excel.
 
 ## What's not done yet
 
@@ -59,5 +69,9 @@ Built with Python and Flask. The whole file is recalculated on every input in un
 - It's built for a small team, so there are no per-file permissions.
 
 The interface is in French, since it was made for a French firm.
+
+<!-- Screenshot placeholder: add more captures in docs/ and reference them here -->
+
+All data in this repository is synthetic. No client data is included.
 
 MIT licence. Made by Mehdi Mobtahij.
